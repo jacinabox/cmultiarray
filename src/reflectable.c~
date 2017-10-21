@@ -1,0 +1,24 @@
+#include "src/reflectable.h"
+#include <stdio.h>
+
+const struct REFLECT definition_int = {"int", 0, 4, {NULL}, {""}};
+const struct REFLECT definition_long = {"long", 0, 4, {NULL}, {""}};
+const struct REFLECT definition_short = {"short", 0, 2, {NULL}, {""}};
+const struct REFLECT definition_char = {"char", 0, 1, {NULL}, {""}};
+const struct REFLECT definition_float = {"float", 0, 4, {NULL}, {""}};
+const struct REFLECT definition_double = {"double", 0, 8, {NULL}, {""}};
+const struct REFLECT definition_time_t = {"time_t", 2, 8, {&definition_long, &definition_long}, {"tv_sec", "tv_nsec"}};
+
+void reflect_print(const struct REFLECT* p) {
+	int ii;
+
+	for (ii = 0;ii < 80;ii++) putchar('*');
+	printf("\nStructure name: %s (size: %u)\n", p->typenm, p->bytessize);
+	for (ii = 0;ii < 80;ii++) putchar('*');
+	puts("\nMember names:           Types:");
+	for (ii = 0;ii < p->n_members;ii++) {
+		printf("%-23s %-56s\n", p->member_names[ii], p->members[ii]->typenm);
+	}
+	for (ii = 0;ii < 80;ii++) putchar('*');
+	puts("");
+}

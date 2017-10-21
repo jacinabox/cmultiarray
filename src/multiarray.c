@@ -1,0 +1,145 @@
+#include <string.h>
+#include "multiarray.h"
+
+const char* MULTIARRAY_EX = "Multiarray";
+
+static __thread struct MD_SLICE temporary_slice;
+
+static unsigned int _the_stride(unsigned int* ar, unsigned int dim_i, unsigned int el_sz) {
+	unsigned int str = el_sz, *p_start = ar - 3 - ar[-3] + dim_i, *p_end = ar - 3;
+
+	for (;p_start!=p_end;p_start++) str *= *p_start;
+	return(str);
+}
+
+/* Accepts:
+  * ar - An array or array slice.
+  * i - The index for the next dimension to index.
+Returns: A pointer to array slice standing for the data at the already-selected
+indices. The pointer returned cannot be dereferenced; it can only be passed
+to other functions.
+Note: The md_#d macros demonstrate how to chain together calls to md_index
+in order to index multi-dimensional arrays.*/
+struct MD_SLICE* md_index(ARRAYLIKE ar, unsigned int i) {
+	struct MD_SLICE* p_slice;
+	struct MD_ARRAY* p_header;
+	struct MD_SLICE slice;
+	unsigned dim_size;
+
+	switch (((unsigned int*)ar)[-1]) {
+	case 0xAAAAA:
+		p_header = (struct MD_ARRAY*)((unsigned int*)ar - 3);
+		dim_size = md_dims_array(ar)[0];
+#ifdef MD_INDEX_CHECKS
+		if (i >= dim_size) {
+			fprintf(stderr, "md_index: %u out of range %u in dimension 0\n", i, dim_size);
+			throw(MULTIARRAY_EX);
+		}
+#endif
+		slice.p_base = ar;
+		slice.stride = _the_stride(ar, 1, md_type_size(ar));
+		slice.p_indexing_base = (char*)ar + i * slice.stride;
+		slice.n_dims = p_header->n_dims - 1;
+		break;
+	case 0xAAAAB:
+		p_slice = unadjust_slice_p(ar);
+		p_header = (struct MD_ARRAY*)((unsigned int*)p_slice->p_base - 3);
+#ifdef MD_INDEX_CHECKS
+		if (p_slice->n_dims == 0) {
+			fputs("md_index: indexed too many times", stderr);
+			throw(MULTIARRAY_EX);
+		}
+#endif
+		dim_size = ((unsigned int*)p_header)[-p_slice->n_dims];
+#ifdef MD_INDEX_CHECKS
+		if (i >= dim_size) {
+			fprintf(stderr, "md_index: %u out of range %u in dimension %u\n", i, dim_size, p_header->n_dims - p_slice->n_dims);
+			throw(MULTIARRAY_EX);
+		}
+#endif
+		slice.p_base = p_slice->p_base;
+		slice.stride = p_slice->stride / dim_size;
+		slice.p_indexing_base = p_slice->p_indexing_base + i * slice.stride;
+		slice.n_dims = p_slice->n_dims - 1;
+		break;
+	case 0xFEEED:
+		fputs("md_index: already freed.", stderr);
+		throw(MULTIARRAY_EX);
+	default:
+		fputs("md_index: not an array or array slice.", stderr);
+		throw(MULTIARRAY_EX);
+	}
+	slice.struct_identifier = 0xAAAAB;
+	temporary_slice = slice;
+	return(adjust_slice_p(&temporary_slice));
+}
+
+/* Accepts
+  * ar - Pointer to an array or array slice.
+  * dim_i - A dimension number (starting from 0).
+  * size - The new size (number of elements) of the selected dimension.
+Returns: a new MULTIARRAY on success, NULL on failure.
+Purpose: Resizes a multi-array along one dimension.
+Note: It can be assumed that md_resize will render invalid the parameter multi-array,
+and will also render invalid any slices formerly taken on that multi-array.*/
+MULTIARRAY md_resize(ARRAYLIKE ar, unsigned int dim_i, unsigned int size) {
+	unsigned int* ar2;
+	struct MD_SLICE* p_slice;
+	char *p_read, *p_write, *p_write_end;
+	unsigned int old_str, new_str, old_size, new_size, old_dim_size, n_dims;
+
+again:
+	switch (((unsigned int*)ar)[-1]) {
+	case 0xAAAAA:
+		old_str = _the_stride(ar, dim_i, md_type_size(ar));
+		old_size = _the_stride(ar, 0, md_type_size(ar));
+		old_dim_size = md_dims_array(ar)[dim_i];
+		md_dims_array(ar)[dim_i] = size;
+		new_str = _the_stride(ar, dim_i, md_type_size(ar));
+		new_size = _the_stride(ar, 0, md_type_size(ar));
+		n_dims = md_dims_n(ar);
+
+		if (size == old_dim_size) {
+			return(ar);
+		} else if (size < old_dim_size) {
+			p_read = p_write = ar;
+			p_write_end = (char*)ar + new_size;
+			for (;p_write!=p_write_end;p_read+=old_str,p_write+=new_str) {
+				memmove(p_write, p_read, new_str);
+			}
+			ar2 = realloc(md_dims_array(ar), sizeof(unsigned int) * n_dims + sizeof(struct MD_ARRAY) + new_size);
+			if (ar2) return(ar2 + n_dims + 3);
+			return(ar);
+		} else {
+			ar2 = realloc(md_dims_array(ar), sizeof(unsigned int) * n_dims + sizeof(struct MD_ARRAY) + new_size);
+			if (!ar2) {
+				fputs("Array re-allocation failed", stderr);
+				//...but the old array is still available.
+				throw(MULTIARRAY_EX);
+			}
+			ar2 += n_dims + 3;
+			p_read = (char*)ar2 + old_size;
+			p_write = (char*)ar2 + new_size;
+			p_write_end = (char*)ar2;
+			do {
+				p_read -= old_str;
+				p_write -= new_str;
+				memmove(p_write, p_read, old_str);
+				memset(p_write+old_str, 0, new_str-old_str);
+			} while (p_write!=p_write_end);
+			return(ar2);
+		}
+	case 0xAAAAB:
+		p_slice = unadjust_slice_p(ar);
+		p_slice->struct_identifier = 0xFEEED;
+		ar = p_slice->p_base;
+		dim_i += md_dims_n(p_slice->p_base) - p_slice->n_dims;
+		goto again;
+	case 0xFEEED:
+		fputs("md_resize: already freed.", stderr);
+		throw(MULTIARRAY_EX);
+	default:
+		fputs("md_resize: not an array or array slice.", stderr);
+		throw(MULTIARRAY_EX);
+	}
+}
