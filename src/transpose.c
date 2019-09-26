@@ -3,16 +3,16 @@
 #include <string.h>
 #include <time.h>
 #include "multiarray.h"
-#include "reflectable.h"
-#include "miscellaneous.h"
-#include "CExceptions.h"
 
-MULTIARRAY transpose(ARRAYLIKE array) {
-	MULTIARRAY array2;
+
+
+
+struct MD_ARRAY* transpose(struct MD_ARRAY* array) {
+	struct MD_ARRAY* array2;
 	unsigned i, j;
 	unsigned dims[2];
 
-	finally(
+
 	if (md_dims_n(array) != 2) {
 		fputs("transpose: need two dimensional array", stderr);
 		return(NULL);
@@ -26,16 +26,17 @@ MULTIARRAY transpose(ARRAYLIKE array) {
 		}
 	}
 	return(array2);
-	,
-	puts("Should always happen"));
+
+
 }
 
 int main() {
 	unsigned int dims[] = {2, 3};
-	MULTIARRAY array = md_alloc(dims, int);
+	struct MD_ARRAY* array = md_alloc(dims, int);
 	time_t* time;
 	
 	//Demo of multidimensional arrays: taking the transpose of a matrix.
+	printf("%u\n", sizeof(unsigned int*));
 	if (!array) return -1;
 	*md_2d(array, 0, 0, int) = 3;
 	*md_2d(array, 0, 1, int) = 2;
@@ -43,13 +44,15 @@ int main() {
 	*md_2d(array, 1, 0, int) = 9;
 	*md_2d(array, 1, 1, int) = 2;
 	*md_2d(array, 1, 2, int) = 7;
+	puts("Completed writes");
 	array = transpose(array);
-	if (!array) { getch(); return -1; }
+	puts("Completed transpose");
+	if (!array) { getc(NULL); return -1; }
 	array = md_resize(array, 1, 100);
-	array = md_resize(array, 0, 50);
+	array = md_resize(array, 2, 50);
 	array = md_resize(array, 1, 4);
-	array = md_resize(array, 0, 4);
-	printf("%i %i\n", *md_2d(array, 2, 1, int), *md_2d(array, 1, 0, int));
+	array = md_resize(array, 2, 4);
+	printf("%i %i\n", *md_2d(array, 1, 2, int), *md_2d(array, 1, 0, int));
 
 	//Demo of exception handling.
 	/*catch(
@@ -58,16 +61,17 @@ int main() {
 		printf("Test exception code: %s\n", exception););*/
 
 	md_free(array);
-	getch();
+
+	getc(stdin);
 
 	//Demo of dynamic reflection.
-	time = alloc(time_t);
-	puts(reflect_header(time)->typenm);
-	puts(reflect_header(time)->member_names[1]);
-	printf("%u %u\n", time, member_by_name(time, "tv_nsec", NULL));
+	//time = alloc(time_t);
+	//puts(reflect_header(time)->typenm);
+	//puts(reflect_header(time)->member_names[1]);
+	//printf("%u %u\n", time, member_by_name(time, "tv_nsec", NULL));
 
-	reflect_print(&definition_time_t);
-	getch();
+	//reflect_print(&definition_time_t);
+
 
 
 	return 0;

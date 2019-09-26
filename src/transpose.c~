@@ -3,8 +3,9 @@
 #include <string.h>
 #include <time.h>
 #include "multiarray.h"
-#include "reflectable.h"
-#include "miscellaneous.h"
+
+
+
 
 MULTIARRAY transpose(ARRAYLIKE array) {
 	MULTIARRAY array2;
@@ -57,16 +58,16 @@ int main() {
 		printf("Test exception code: %s\n", exception););*/
 
 	md_free(array);
-	getch();
+	getc(NULL);
 
 	//Demo of dynamic reflection.
-	time = alloc(time_t);
-	puts(reflect_header(time)->typenm);
-	puts(reflect_header(time)->member_names[1]);
-	printf("%u %u\n", time, member_by_name(time, "tv_nsec", NULL));
+	//time = alloc(time_t);
+	//puts(reflect_header(time)->typenm);
+	//puts(reflect_header(time)->member_names[1]);
+	//printf("%u %u\n", time, member_by_name(time, "tv_nsec", NULL));
 
-	reflect_print(&definition_time_t);
-	getch();
+	//reflect_print(&definition_time_t);
+	getc(NULL);
 
 
 	return 0;
